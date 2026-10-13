@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VPS Hello World</title>
+  <style>
+    :root { --bg:#fafaf7; --fg:#1d1d1b; --muted:#77756e; --line:#dcdad3; --accent:#2f5bea; --bad:#c2382b; --good:#2e7d4f; }
+    @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ecebe6; --muted:#9a988f; --line:#33322f; --accent:#7d9bff; --bad:#ff7a6b; --good:#6fcf97; } }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:17px/1.5 -apple-system, system-ui, sans-serif; }
+    main { max-width:480px; margin:0 auto; padding:48px 16px; }
+    h1 { font-size:14px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 24px; }
+    #message { font-size:32px; line-height:1.2; font-weight:600; margin:0 0 32px; min-height:1.2em; overflow-wrap:anywhere; }
+    form { display:flex; gap:8px; }
+    input { flex:1; min-width:0; font:inherit; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; }
+    button { font:inherit; font-weight:600; padding:10px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+    button:disabled { opacity:.5; cursor:default; }
+    #status { margin-top:16px; font-size:14px; color:var(--muted); }
+    #status.bad { color:var(--bad); } #status.good { color:var(--good); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>VPS Hello World</h1>
+    <p id="message">…</p>
+    <form id="form">
+      <input id="input" placeholder="Type a new message" autocomplete="off" required>
+      <button id="save" type="submit">Save</button>
+    </form>
+    <p id="status">Connecting…</p>
+  </main>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+    import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+
+    const $ = (id) => document.getElementById(id);
+    const setStatus = (text, kind = "") => { $("status").textContent = text; $("status").className = kind; };
+
+    if (!SUPABASE_ANON_KEY) {
+      $("message").textContent = "Not connected yet";
+      setStatus("Add the server address and anon key to config.js.", "bad");
+      $("save").disabled = true;
+    } else {
+      const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      async function load() {
+        const { data, error } = await db.from("hello").select("message, updated_at").eq("id", 1).single();
+        if (error) return setStatus(`Couldn’t load: ${error.message}`, "bad");
+        $("message").textContent = data.message;
+        setStatus(`Connected · last changed ${new Date(data.updated_at).toLocaleString()}`, "good");
+      }
+
+      $("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const message = $("input").value.trim();
+        if (!message) return;
+        $("save").disabled = true;
+        const { error } = await db.from("hello")
+          .update({ message, updated_at: new Date().toISOString() })
+          .eq("id", 1);
+        $("save").disabled = false;
+        if (error) return setStatus(`Couldn’t save: ${error.message}`, "bad");
+        $("input").value = "";
+        load();
+      });
+
+      load();
+    }
+  </script>
+</body>
+</html>
